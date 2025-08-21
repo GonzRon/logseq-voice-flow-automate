@@ -1,0 +1,42 @@
+{
+  "name": "logseq-voiceflow-automate",
+  "version": "1.0.0",
+  "description": "Voice transcription to Todoist automation for Logseq",
+  "main": "dist/index.html",
+  "targets": {
+    "main": false
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "logseq",
+    "plugin",
+    "voice",
+    "todoist",
+    "automation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@logseq/libs": "^0.0.15",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^4.4.0",
+    "vite-plugin-logseq": "^1.1.2"
+  },
+  "logseq": {
+    "id": "logseq-voiceflow-automate",
+    "title": "VoiceFlow Automate",
+    "icon": "./icon.svg"
+  }
+}
