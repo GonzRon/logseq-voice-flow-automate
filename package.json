@@ -21,7 +21,7 @@
     "whisper",
     "transcription"
   ],
-  "author": "Ron Gonzalez",
+  "author": "LooseCannon",
   "license": "MIT",
   "dependencies": {
     "@logseq/libs": "^0.0.15",
