@@ -4,7 +4,7 @@ A powerful Logseq plugin that transcribes voice notes and automatically creates 
 
 ## 🎙️ Important: AAC Audio Support
 
-**⚠️ Mobile Users:** Logseq's mobile app records audio in AAC format by default. Since OpenAI's Whisper API doesn't support AAC files directly, you'll need to run the **Audio Converter Server** to process these files.
+Logseq's mobile app records audio in AAC format by default. Since OpenAI's Whisper API doesn't support AAC files directly, you'll need to run the **Audio Converter Server** to process these files.
 
 ### Audio Converter Server Setup
 
