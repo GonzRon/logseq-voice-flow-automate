@@ -24,6 +24,28 @@ export const settingsSchema: SettingSchemaDesc[] = [
     title: 'OpenAI API Endpoint',
     description: 'OpenAI API endpoint (change only if using a proxy)',
   },
+  // Todoist Settings
+  {
+    key: 'todoistApiToken',
+    type: 'string',
+    default: '',
+    title: 'Todoist API Token',
+    description: 'Your Todoist API token. Get it from https://todoist.com/app/settings/integrations/developer',
+  },
+  {
+    key: 'defaultProject',
+    type: 'string',
+    default: '',
+    title: 'Default Todoist Project',
+    description: 'Default project ID for tasks (leave empty to use inbox)',
+  },
+  {
+    key: 'projectMappings',
+    type: 'object',
+    default: {},
+    title: 'Project Tag Mappings',
+    description: 'Map hashtags to Todoist projects (configure in UI)',
+  },
   // Transcription Settings
   {
     key: 'todoTriggerTags',
@@ -47,21 +69,6 @@ export const settingsSchema: SettingSchemaDesc[] = [
     default: true,
     title: 'Create Hierarchical Tasks',
     description: 'Create master task with subtasks when using AI mode',
-  },
-  // Todoist Settings
-  {
-    key: 'defaultProject',
-    type: 'string',
-    default: '',
-    title: 'Default Todoist Project',
-    description: 'Default project ID for tasks (leave empty to use inbox)',
-  },
-  {
-    key: 'projectMappings',
-    type: 'object',
-    default: {},
-    title: 'Project Tag Mappings',
-    description: 'Map hashtags to Todoist projects (configure in UI)',
   },
   // AI Prompts
   {
