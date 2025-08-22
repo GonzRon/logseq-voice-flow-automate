@@ -71,27 +71,23 @@ function defaultTitleFromNow(): string {
 export async function runVoiceFlow(): Promise<void> {
   console.log("=== VoiceFlowAutomate: Starting transcription ===");
 
-  // --- 1) Whisper transcription ---
+  // 1) Transcribe
   const transcript = await whisperTranscribeFromCurrentOrArgs();
   if (!transcript) return;
 
-  // --- 2) Summarize to get Title (and bullets/tags) ---
+  // 2) Summarize
   const summaryText = await processTextWithPrompt("voiceflow.summarize", transcript);
   const title = extractTitleFromSummary(summaryText || "") || defaultTitleFromNow();
 
-  // --- 3) Create/update the page by Title (single page only) ---
-  const pageBody = `## Summary
-${summaryText || "_(no summary)_"}
+  // 3) Create page with SEPARATE summary and transcript
+  const pageTitle = await createOrUpdateVoicePage(title, summaryText, transcript);
 
-## Transcript
-${transcript}`;
-  const pageTitle = await createOrUpdateVoicePage(title, pageBody);
   if (!pageTitle) {
-    logseq.App.showMsg("Failed to create/update the page for this transcript", "error");
+    logseq.App.showMsg("Failed to create/update the page", "error");
     return;
   }
 
-  // Add backlink under the audio block (no page props noise)
+  // Add backlink
   try {
     const b = await logseq.Editor.getCurrentBlock();
     if (b) {
@@ -100,6 +96,7 @@ ${transcript}`;
   } catch (e) {
     console.warn("[voiceflow] backlink insert skipped:", e);
   }
+
 
   // --- 4) Task generation logic based on tags ---
   const { hasTodo, mode, projectTags, cleanedText } = parseTagsLocally(transcript);
