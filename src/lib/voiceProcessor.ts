@@ -1,13 +1,11 @@
-// src/lib/voiceProcessor.ts - Main voice processing logic for VoiceFlow Automate
+// src/lib/voiceProcessor.ts - Enhanced voice processing with full gherkin implementation
 import "@logseq/libs";
 import { whisperTranscribe, summarizeText, extractTasks } from "./openai";
 import { getAudioFile } from "./audioHandler";
 import { parseTags } from "./tagParser";
 import { createTodoistTasks } from "./todoistService";
-import { createOrUpdateVoicePage } from "./pageCreator";
-import { getCustomPrompt, buildSummarizeJSONPrompt, buildTasksJSONPrompt } from "./prompts";
-
-// Prompts are now in prompts.ts
+import { createEnhancedVoicePage } from "./pageCreator";
+import { getCustomPrompt } from "./prompts";
 
 /**
  * Extract title from summary text
@@ -81,9 +79,11 @@ export async function runVoiceFlow(): Promise<void> {
     }
 
     console.log("[VoiceFlow] Transcription successful, length:", transcript.length);
+    console.log("[VoiceFlow] Transcript sample:", transcript.substring(0, 200));
 
-    // Step 3: Parse tags and configuration
-    const config = parseTags(transcript, logseq.settings);
+    // Step 3: Parse tags from BOTH transcript AND block content
+    const config = parseTags(transcript, current.content, logseq.settings);
+    console.log("[VoiceFlow] Parsed config:", config);
 
     // Step 4: Generate summary (if AI mode or creating page)
     let summary = null;
@@ -100,7 +100,7 @@ export async function runVoiceFlow(): Promise<void> {
         summarizePrompt,
         apiKey,
         {
-          completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-5-nano",
+          completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-4o",
           temperature: 1,
           maxCompletionTokens: 4000,
           completionEndpoint: logseq.settings?.["openAIEndpoint"]
@@ -129,10 +129,10 @@ export async function runVoiceFlow(): Promise<void> {
     }
 
     // Step 5: Create tasks if needed
+    let tasks: string[] = [];
+
     if (config.createTodo) {
       logseq.App.showMsg("Creating tasks...", "info");
-
-      let tasks: string[] = [];
 
       if (config.useAI) {
         // Use AI to extract tasks with proper prompt
@@ -142,7 +142,7 @@ export async function runVoiceFlow(): Promise<void> {
           taskPrompt,
           apiKey,
           {
-            completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-5-nano",
+            completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-4o",
             completionEndpoint: logseq.settings?.["openAIEndpoint"]
           }
         );
@@ -154,43 +154,101 @@ export async function runVoiceFlow(): Promise<void> {
           if (taskData.parent?.title) {
             config.masterTaskTitle = taskData.parent.title;
           }
+
+          console.log("[VoiceFlow] Extracted tasks:", tasks);
+          console.log("[VoiceFlow] Master task:", config.masterTaskTitle);
         }
       } else {
         // Use literal text as single task
         tasks = [config.cleanText];
       }
 
+      // Create tasks in Todoist if configured
       if (tasks.length > 0) {
-        const createdTasks = await createTodoistTasks(tasks, config);
-        if (createdTasks.length > 0) {
-          logseq.App.showMsg(`Created ${createdTasks.length} task(s) in Todoist`, "success");
+        try {
+          const createdTasks = await createTodoistTasks(tasks, config);
+          if (createdTasks.length > 0) {
+            logseq.App.showMsg(`Created ${createdTasks.length} task(s) in Todoist`, "success");
+          }
+        } catch (error) {
+          console.warn("[VoiceFlow] Todoist integration not available or failed:", error);
+          // Continue - tasks will still be added to the page
         }
       }
     }
 
-    // Step 6: Create transcription page
+    // Step 6: Create enhanced transcription page
     if (logseq.settings?.["createTranscriptionPage"] !== false) {
-      const pageName = await createOrUpdateVoicePage(title, summary, transcript);
+      // Get current page for source reference
+      const currentPage = await logseq.Editor.getCurrentPage();
+      const sourceBlock = currentPage?.name ? `[[${currentPage.name}]]` : undefined;
+
+      const pageName = await createEnhancedVoicePage({
+        title,
+        summary,
+        transcript,
+        config,
+        tasks,
+        sourceBlock
+      });
+
       if (pageName) {
-        // Add reference to the new page in current block
-        const reference = `[[${pageName}]]`;
-        const updatedContent = current.content + "\n" + reference;
-        await logseq.Editor.updateBlock(current.uuid, updatedContent);
+        // Add reference to the new page based on settings
+        const referenceMode = logseq.settings?.["addPageReference"] || "inline";
+        const referenceFormat = logseq.settings?.["pageReferenceFormat"] || "📝 [[{title}]]";
+        const pageReference = referenceFormat.replace("{title}", pageName);
+
+        try {
+          if (referenceMode === "inline") {
+            // Re-fetch the current block to ensure we have the latest content
+            const freshBlock = await logseq.Editor.getBlock(current.uuid);
+            if (freshBlock) {
+              // Add reference inline in the same block
+              const updatedContent = freshBlock.content + "\n" + pageReference;
+              await logseq.Editor.updateBlock(freshBlock.uuid, updatedContent);
+              console.log(`[VoiceFlow] Added inline page reference: ${pageName}`);
+            }
+          } else if (referenceMode === "child") {
+            // Add reference as a child block
+            await logseq.Editor.insertBlock(current.uuid, pageReference, {
+              sibling: false,
+              before: false
+            });
+            console.log(`[VoiceFlow] Added child block with page reference: ${pageName}`);
+          }
+          // If "none", don't add any reference
+        } catch (error) {
+          console.error("[VoiceFlow] Failed to add page reference:", error);
+          // Continue anyway - the page was created successfully
+        }
 
         logseq.App.showMsg(`✅ Transcribed to: ${pageName}`, "success");
 
         // Optionally open the created page
         if (logseq.settings?.["autoOpenCreatedPage"]) {
-          await logseq.Editor.openPage(pageName);
+          setTimeout(() => {
+            logseq.Editor.openPage(pageName);
+          }, 500); // Small delay to ensure page is fully created
         }
       }
     }
 
-    // Step 7: Clean up audio reference if configured
+    // Step 7: Clean up audio reference if configured (DISABLED if page reference is added inline)
     if (logseq.settings?.["autoDeleteProcessedAudio"]) {
-      // Remove audio file reference from block
-      const cleanedContent = current.content.replace(/!\[.*?\]\(.+\.(aac|mp3|m4a|wav|webm)\)/i, "");
-      await logseq.Editor.updateBlock(current.uuid, cleanedContent);
+      const referenceMode = logseq.settings?.["addPageReference"] || "inline";
+
+      // Only delete if we're not adding the reference inline
+      if (referenceMode !== "inline") {
+        // Re-fetch block and remove audio file reference
+        const freshBlock = await logseq.Editor.getBlock(current.uuid);
+        if (freshBlock) {
+          const cleanedContent = freshBlock.content.replace(/!\[.*?\]\(.+\.(aac|mp3|m4a|wav|webm)\)/i, "");
+          await logseq.Editor.updateBlock(freshBlock.uuid, cleanedContent.trim());
+          console.log("[VoiceFlow] Removed audio file reference");
+        }
+      } else {
+        console.log("[VoiceFlow] Skipping audio deletion - page reference added inline");
+      }
     }
 
   } catch (error) {

@@ -14,7 +14,7 @@ export interface OpenAIOptions {
 const OpenAIDefaults = (apiKey: string): OpenAIOptions => ({
   apiKey,
   completionEngine: "gpt-5-nano",
-  temperature: 0.3,
+  temperature: 1,
   maxCompletionTokens: 4000,
   completionEndpoint: "https://api.openai.com/v1"
 });
@@ -157,7 +157,7 @@ export async function summarizeText(
 
   const openAIOptions: OpenAIOptions = {
     apiKey,
-    temperature: 0.3,
+    temperature: 1,
     maxCompletionTokens: 500,
     ...options
   };
@@ -188,7 +188,7 @@ Only output valid JSON, no commentary or markdown.`;
 
   const openAIOptions: OpenAIOptions = {
     apiKey,
-    temperature: 0.2,
+    temperature: 1,
     maxCompletionTokens: 4000,
     ...options
   };
