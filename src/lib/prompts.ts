@@ -1,75 +1,163 @@
+// src/lib/prompts.ts - Prompt management for VoiceFlow Automate
+import toml from "toml";
+import promptsToml from "./prompts.toml?raw";
+
+interface PromptConfig {
+  voiceflow_summarize?: string;
+  voiceflow_tasks?: string;
+}
+
+// Parse TOML prompts
+let tomlPrompts: PromptConfig = {};
+try {
+  tomlPrompts = toml.parse(promptsToml);
+} catch (e) {
+  console.warn("[VoiceFlow] Failed to parse prompts.toml, using defaults");
+}
+
 /**
- * Minimal prompts loader for VoiceFlow Automate.
- * - No ?raw import (avoids Vite/TSC errors); embed sane defaults.
- * - You can later add TOML parsing if you want—this compiles cleanly now.
+ * Build a summarization prompt using TOML template or fallback
  */
+export function buildSummarizePrompt(transcript: string): string {
+  // Try to use TOML prompt first
+  if (tomlPrompts.voiceflow_summarize) {
+    return tomlPrompts.voiceflow_summarize.replace("<<<TRANSCRIPT>>>", transcript);
+  }
 
-export type PromptMap = Record<string, { prompt: string; temperature?: number }>;
+  // Fallback to hardcoded prompt
+  return `
+You are a helpful note summarizer.
+Given the transcript below, produce:
 
-const DEFAULT_PROMPTS: PromptMap = {
-  "voiceflow.summarize": {
-    prompt:
-`You are an expert meeting/voice-note summarizer.
-Summarize the transcript into:
-1) Title: a concise, specific, useful title (<= 10 words).
-2) Summary: 3–6 bullet points capturing the core ideas and decisions.
-3) Key tags: 3–8 #tags that naturally describe topics.
+1) A single-line Title (concise, proper case) prefixed exactly with 'Title: '.
+2) A 3–6 bullet Summary (succinct, factual).
+3) Key Tags as a comma-separated list prefixed with 'Tags: ' (optional).
 
-Format STRICTLY as:
-Title: <title>
-Summary:
-- <bullet>
-- <bullet>
-Tags: #tag1 #tag2 #tag3`,
-    temperature: 0.2,
-  },
+Rules:
+- Do NOT include the #todo or control hashtags in the output.
+- Keep Title under 80 characters.
+- Keep bullets short; no fluff.
 
-  "voiceflow.todo-ai": {
-    prompt:
-`You convert a voice note into Todoist tasks based on these rules:
+Transcript:
+${transcript}
+`.trim();
+}
 
-- If the note implies a single clear action, return a single task.
-- If there are multiple actions, create ONE parent task (a short project-style title)
-  then 2–8 balanced, concrete subtasks (not too tiny, not too vague).
-- Do NOT include hashtags in task text.
-- If dates are mentioned, extract them in natural language (e.g., "tomorrow", "next Friday", or "January 15, 2026").
+/**
+ * Build a strict-JSON summarization prompt that returns:
+ * { "title": string, "abstract": string }
+ */
+export function buildSummarizeJSONPrompt(transcript: string): string {
+  return `
+You are a note summarizer. Given a raw transcript, produce:
+1) a short, specific title suitable for a filename and page title,
+2) a clear 2–5 sentence abstract that captures the core intent and outcomes.
 
-Return STRICT JSON with this schema:
+Rules:
+- Title: <= 70 chars, filesystem-safe (no / \\ : * ? " < > |), no quotes.
+- Abstract: brief, concrete, no filler.
+- Do NOT include control hashtags (e.g., #todo, #ai, #direct).
+- Output STRICT JSON only.
+
+JSON schema:
 {
-  "mode": "single" | "hierarchy",
-  "parent": { "title": "<string>" } | null,
+  "title": "string (<=70 chars, filesystem-safe)",
+  "abstract": "string (2–5 sentences)"
+}
+
+Return ONLY valid JSON. No explanations.
+
+TRANSCRIPT:
+<<<
+${transcript}
+>>>
+`.trim();
+}
+
+/**
+ * Build a tasks extraction prompt using TOML template or fallback
+ */
+export function buildTasksPrompt(transcript: string): string {
+  // Try to use TOML prompt first
+  if (tomlPrompts.voiceflow_tasks) {
+    return tomlPrompts.voiceflow_tasks.replace("<<<NOTE>>>", transcript);
+  }
+
+  // Fallback to hardcoded prompt
+  return `
+You turn a short note into Todoist-ready tasks.
+
+Output JSON ONLY, with this shape:
+{
+  "parent": { "title": "Master task title (if needed)" } | null,
   "tasks": [
-    { "title": "<string>", "due": "<string|null>" }
+     { "title": "Actionable task", "due": "optional natural date", "projectTag": "optional mapped tag" }
   ]
 }
 
-Only output JSON, no commentary.`,
-    temperature: 0.2,
-  },
-};
+Guidelines:
+- Create a small, balanced set of tasks (3–7 usually). Not too granular; not too vague.
+- If it's a single clear action, prefer one task and parent=null.
+- If multiple coherent actions: use a short parent summary and place the actions in tasks[].
+- Remove control hashtags like #todo, #ai, #direct and project tags from task titles.
+- Due dates: infer reasonable due phrases only if user said something like 'tomorrow', 'next Friday', 'in two weeks'.
+- Do NOT invent deadlines that weren't implied.
 
-export function getPrompt(keyOrText: string): { prompt: string; temperature?: number } {
-  const k = keyOrText?.trim();
-  if (!k) return { prompt: "" };
-
-  // If caller passed a known key, return that
-  if (DEFAULT_PROMPTS[k]) return DEFAULT_PROMPTS[k];
-
-  // Otherwise, treat the input as a literal prompt
-  return { prompt: k };
+Now convert this note:
+${transcript}
+`.trim();
 }
 
-// Optional helper if you want simple {{var}} substitution without replaceAll
-export function fillPrompt(template: string, vars: Record<string, string>): string {
-  let out = template || "";
-  for (const [k, v] of Object.entries(vars || {})) {
-    // replace all {{k}} with v (global)
-    const re = new RegExp(`\\{\\{\\s*${escapeRegExp(k)}\\s*\\}\\}`, "g");
-    out = out.replace(re, v);
+/**
+ * Build a strict-JSON tasks prompt
+ */
+export function buildTasksJSONPrompt(transcript: string): string {
+  return `
+You turn a short note into Todoist-ready tasks.
+
+Output STRICT JSON ONLY:
+{
+  "parent": { "title": "Master task title (if needed)", "due_date": "YYYY-MM-DD or null" } | null,
+  "subtasks": [
+     { "title": "Actionable task", "due_date": "YYYY-MM-DD or null" }
+  ]
+}
+
+Guidelines:
+- 2–8 concrete tasks when there are multiple actions; a single task if only one clear action exists.
+- Remove control hashtags (#todo, #ai, #direct, project tags) from titles.
+- Infer due dates only if clearly stated ("tomorrow", "next Friday"); otherwise null.
+- Do NOT invent dates.
+
+Return ONLY valid JSON. No explanations.
+
+TRANSCRIPT:
+<<<
+${transcript}
+>>>
+`.trim();
+}
+
+/**
+ * Get a custom prompt from settings or use default
+ */
+export function getCustomPrompt(
+  type: 'summary' | 'tasks',
+  settings: any,
+  transcript: string
+): string {
+  if (type === 'summary') {
+    const customPrompt = settings?.aiPrompt;
+    if (customPrompt) {
+      return customPrompt.replace("<<<TRANSCRIPT>>>", transcript);
+    }
+    // Use JSON prompt for better structured output
+    return buildSummarizeJSONPrompt(transcript);
+  } else {
+    const customPrompt = settings?.taskPrompt;
+    if (customPrompt) {
+      return customPrompt.replace("<<<NOTE>>>", transcript);
+    }
+    return buildTasksJSONPrompt(transcript);
   }
-  return out;
-}
-
-function escapeRegExp(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

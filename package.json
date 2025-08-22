@@ -1,7 +1,7 @@
 {
   "name": "logseq-voiceflow-automate",
-  "version": "1.0.0",
-  "description": "Voice transcription to Todoist automation for Logseq",
+  "version": "2.0.0",
+  "description": "Voice transcription to Todoist automation for Logseq - Standalone version",
   "main": "dist/index.html",
   "targets": {
     "main": false
@@ -16,14 +16,20 @@
     "plugin",
     "voice",
     "todoist",
-    "automation"
+    "automation",
+    "openai",
+    "whisper",
+    "transcription"
   ],
-  "author": "Your Name",
+  "author": "Ron Gonzalez",
   "license": "MIT",
   "dependencies": {
     "@logseq/libs": "^0.0.15",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "openai": "^4.6.1",
+    "exponential-backoff": "^3.1.0",
+    "toml": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.8.0",

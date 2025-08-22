@@ -1,4 +1,4 @@
-/* VoiceFlow Automate Plugin Styles */
+/* src/styles/index.css - VoiceFlow Automate Plugin Styles */
 
 .voiceflow-container {
   position: fixed;
@@ -8,7 +8,7 @@
   background: white;
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  width: 500px;
+  width: 600px;
   max-width: 90vw;
   max-height: 80vh;
   overflow: hidden;
@@ -56,6 +56,24 @@
   padding: 20px;
   overflow-y: auto;
   flex: 1;
+}
+
+.voiceflow-info {
+  text-align: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f0f4ff;
+  border-radius: 8px;
+}
+
+.voiceflow-info p {
+  margin: 5px 0;
+  color: #555;
+}
+
+.version-info {
+  color: #667eea !important;
+  font-weight: 600;
 }
 
 /* Status Display */
@@ -117,6 +135,8 @@
   margin: 0 0 10px 0;
   font-size: 18px;
   color: #333;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 10px;
 }
 
 .config-panel h4 {
@@ -130,17 +150,37 @@
   padding: 15px;
   background: #f8f9fa;
   border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.integration-buttons {
+.api-key-section {
   display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
-.integration-buttons button {
+.api-key-input-group {
+  display: flex;
+  gap: 5px;
+}
+
+.api-key-input-group input {
   flex: 1;
-  padding: 10px;
-  background: #007bff;
+}
+
+.toggle-visibility {
+  padding: 5px 10px;
+  background: #e9ecef;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.test-btn {
+  padding: 8px 16px;
+  background: #28a745;
   color: white;
   border: none;
   border-radius: 6px;
@@ -149,14 +189,29 @@
   transition: background 0.2s;
 }
 
-.integration-buttons button:hover {
-  background: #0056b3;
+.test-btn:hover {
+  background: #218838;
+}
+
+.project-mappings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .help-text {
   font-size: 12px;
   color: #666;
-  margin: 0 0 8px 0;
+  margin: 0;
+}
+
+.help-text a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.help-text a:hover {
+  text-decoration: underline;
 }
 
 textarea {
@@ -167,6 +222,7 @@ textarea {
   font-family: 'Courier New', monospace;
   font-size: 13px;
   resize: vertical;
+  box-sizing: border-box;
 }
 
 label {
@@ -177,6 +233,10 @@ label {
   color: #333;
 }
 
+label input[type="checkbox"] {
+  margin: 0;
+}
+
 select {
   padding: 6px 10px;
   border: 1px solid #ddd;
@@ -184,6 +244,18 @@ select {
   font-size: 14px;
   background: white;
   cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+input[type="text"],
+input[type="password"] {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .save-btn {
@@ -196,6 +268,7 @@ select {
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 10px;
 }
 
 .save-btn:hover {
@@ -203,11 +276,32 @@ select {
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
+.config-footer {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.config-footer .version {
+  font-size: 12px;
+  color: #999;
+  margin: 5px 0;
+}
+
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   .voiceflow-container {
     background: #1a1a1a;
     color: #e0e0e0;
+  }
+
+  .voiceflow-info {
+    background: #2a2a3a;
+  }
+
+  .voiceflow-info p {
+    color: #aaa;
   }
 
   .config-section {
@@ -221,7 +315,9 @@ select {
   }
 
   textarea,
-  select {
+  select,
+  input[type="text"],
+  input[type="password"] {
     background: #333;
     color: #e0e0e0;
     border-color: #444;
@@ -229,5 +325,11 @@ select {
 
   .help-text {
     color: #aaa;
+  }
+
+  .toggle-visibility {
+    background: #333;
+    border-color: #444;
+    color: #e0e0e0;
   }
 }

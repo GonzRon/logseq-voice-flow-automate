@@ -28,11 +28,11 @@ Input is the user's note text. Output JSON ONLY, with this shape:
 
 Guidelines:
 - Create a small, balanced set of tasks (3–7 usually). Not too granular; not too vague.
-- If it’s a single clear action, prefer one task and parent=null.
+- If it's a single clear action, prefer one task and parent=null.
 - If multiple coherent actions: use a short parent summary and place the actions in tasks[].
 - Remove control hashtags like #todo, #ai, #direct and project tags from task titles.
 - Due dates: infer reasonable due phrases only if user said something like 'tomorrow', 'next Friday', 'in two weeks'.
-- Do NOT invent deadlines that weren’t implied.
+- Do NOT invent deadlines that weren't implied.
 
 Now convert this note:
 <<<NOTE>>>
