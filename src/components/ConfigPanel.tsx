@@ -1,10 +1,13 @@
 // src/components/ConfigPanel.tsx - Configuration panel for VoiceFlow Automate
 import React, { useState, useEffect } from 'react'
+import { testTodoistIntegration, getTodoistProjects } from '../lib/todoistService'
 
 export const ConfigPanel: React.FC = () => {
   const [config, setConfig] = useState<any>({})
   const [projectMappings, setProjectMappings] = useState<string>('{}')
   const [apiKeyVisible, setApiKeyVisible] = useState(false)
+  const [todoistKeyVisible, setTodoistKeyVisible] = useState(false)
+  const [availableProjects, setAvailableProjects] = useState<any[]>([])
 
   useEffect(() => {
     loadSettings()
@@ -16,6 +19,12 @@ export const ConfigPanel: React.FC = () => {
     if (settings?.projectMappings) {
       setProjectMappings(JSON.stringify(settings.projectMappings, null, 2))
     }
+
+    // Load available Todoist projects if API token exists
+    if (settings?.todoistApiToken) {
+      const projects = await getTodoistProjects()
+      setAvailableProjects(projects)
+    }
   }
 
   const saveSettings = async () => {
@@ -26,6 +35,12 @@ export const ConfigPanel: React.FC = () => {
         projectMappings: mappings
       })
       logseq.App.showMsg('Settings saved successfully', 'success')
+
+      // Reload projects if Todoist token changed
+      if (config.todoistApiToken) {
+        const projects = await getTodoistProjects()
+        setAvailableProjects(projects)
+      }
     } catch (error) {
       logseq.App.showMsg('Invalid JSON in project mappings', 'error')
     }
@@ -58,17 +73,35 @@ export const ConfigPanel: React.FC = () => {
   }
 
   const testTodoist = async () => {
-    try {
-      const result = await logseq.App.invokeExternalPlugin(
-        'logseq-todoist-plugin.models.test',
-        {}
-      )
-      logseq.App.showMsg(
-        result ? '✅ Todoist plugin connected' : '❌ Todoist plugin not found',
-        result ? 'success' : 'error'
-      )
-    } catch (error) {
-      logseq.App.showMsg('❌ Todoist plugin not installed', 'warning')
+    if (!config.todoistApiToken) {
+      logseq.App.showMsg('Please configure your Todoist API token first', 'warning')
+      return
+    }
+
+    const success = await testTodoistIntegration()
+    if (success) {
+      // Reload available projects
+      const projects = await getTodoistProjects()
+      setAvailableProjects(projects)
+    }
+  }
+
+  const loadProjectsForMapping = async () => {
+    if (!config.todoistApiToken) {
+      logseq.App.showMsg('Configure Todoist API token first', 'warning')
+      return
+    }
+
+    const projects = await getTodoistProjects()
+    if (projects.length > 0) {
+      // Generate example mapping
+      const exampleMapping: any = {}
+      projects.slice(0, 3).forEach(p => {
+        const tag = `#${p.name.toLowerCase().replace(/\s+/g, '-')}`
+        exampleMapping[tag] = { id: p.id, name: p.name }
+      })
+      setProjectMappings(JSON.stringify(exampleMapping, null, 2))
+      logseq.App.showMsg(`Loaded ${projects.length} projects. Edit tags as needed.`, 'success')
     }
   }
 
@@ -113,28 +146,62 @@ export const ConfigPanel: React.FC = () => {
               openAICompletionEngine: e.target.value
             })}
           >
-            <option value="gpt-4o">GPT-4o (Fast, multimodal, newest default)</option>
-            <option value="gpt-4o-latest">GPT-4o Latest</option>
-            <option value="gpt-4.1">GPT-4.1 (Advanced, large context, better coding/instructions)</option>
-            <option value="gpt-4.1-mini">GPT-4.1 Mini (Fast, cost-efficient)</option>
-            <option value="gpt-4.1-nano">GPT-4.1 Nano (Fastest, low-cost, high efficiency)</option>
-            <option value="gpt-5">GPT-5 (Best reasoning, multimodal, newest release)</option>
-            <option value="gpt-5-mini">GPT-5 Mini (Faster, less expensive for well-defined tasks)</option>
-            <option value="gpt-5-nano">GPT-5 Nano (Fastest, most affordable GPT-5 variant)</option>
+            <option value="gpt-4o">GPT-4o (Fast, multimodal)</option>
+            <option value="gpt-4o-mini">GPT-4o Mini (Efficient)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fast, affordable)</option>
           </select>
         </label>
       </div>
 
       <div className="config-section">
         <h4>Todoist Integration (Optional)</h4>
-        <button onClick={testTodoist} className="test-btn">
-          Test Todoist Connection
-        </button>
+        <div className="api-key-section">
+          <label>
+            API Token:
+            <div className="api-key-input-group">
+              <input
+                type={todoistKeyVisible ? "text" : "password"}
+                value={config.todoistApiToken || ''}
+                onChange={(e) => setConfig({
+                  ...config,
+                  todoistApiToken: e.target.value
+                })}
+                placeholder="Your Todoist API token..."
+              />
+              <button
+                className="toggle-visibility"
+                onClick={() => setTodoistKeyVisible(!todoistKeyVisible)}
+              >
+                {todoistKeyVisible ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </label>
+          <div className="help-text">
+            <a href="https://todoist.com/app/settings/integrations/developer" target="_blank" rel="noopener noreferrer">
+              Get your Todoist API token →
+            </a>
+          </div>
+          <button onClick={testTodoist} className="test-btn">
+            Test Todoist Connection
+          </button>
+        </div>
+
+        {availableProjects.length > 0 && (
+          <div className="available-projects">
+            <p className="help-text">
+              Found {availableProjects.length} Todoist projects
+            </p>
+          </div>
+        )}
 
         <div className="project-mappings">
           <p className="help-text">
             Map hashtags to Todoist projects (JSON format)
           </p>
+          <button onClick={loadProjectsForMapping} className="load-projects-btn">
+            Load Projects for Mapping
+          </button>
           <textarea
             value={projectMappings}
             onChange={(e) => setProjectMappings(e.target.value)}
@@ -200,6 +267,19 @@ export const ConfigPanel: React.FC = () => {
             <option value="ai">AI Summarization</option>
           </select>
         </label>
+
+        <label>
+          Todo Trigger Tags:
+          <input
+            type="text"
+            value={config.todoTriggerTags || '#todo, #task'}
+            onChange={(e) => setConfig({
+              ...config,
+              todoTriggerTags: e.target.value
+            })}
+            placeholder="#todo, #task, #to-do"
+          />
+        </label>
       </div>
 
       <button className="save-btn" onClick={saveSettings}>
@@ -209,9 +289,7 @@ export const ConfigPanel: React.FC = () => {
       <div className="config-footer">
         <p className="version">VoiceFlow Automate v2.0 - Standalone Edition</p>
         <p className="help-text">
-          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">
-            Get OpenAI API Key →
-          </a>
+          Direct Todoist API integration - no external plugins required!
         </p>
       </div>
     </div>

@@ -1,225 +1,161 @@
-# 🎤 VoiceFlow Automate Plugin for Logseq (Standalone Version)
+# VoiceFlow Automate v2.0 - Standalone Edition
 
-A standalone Logseq plugin that seamlessly converts voice notes to organized pages and Todoist tasks using OpenAI's Whisper API for transcription and GPT for intelligent task extraction.
+A powerful Logseq plugin that transcribes voice notes and automatically creates tasks in Todoist using OpenAI's Whisper and GPT models.
 
-## ✨ What's New in v2.0
+## ✨ Key Features
 
-**This plugin is now completely standalone!** No external plugin dependencies required.
+- **Voice Transcription**: Convert audio files to text using OpenAI's Whisper API
+- **AI Summarization**: Generate intelligent summaries and extract actionable tasks
+- **Direct Todoist Integration**: Create tasks without external dependencies
+- **Smart Tag Detection**: Automatically trigger actions using spoken hashtags
+- **Hierarchical Tasks**: Create master tasks with subtasks for complex projects
+- **Due Date Recognition**: Natural language processing for deadlines
 
-- **Direct OpenAI Integration**: Built-in Whisper transcription and GPT processing
-- **No External Dependencies**: Works independently without requiring other plugins
-- **Enhanced Audio Support**: Native support for MP3, M4A, WAV, WEBM, and AAC files
-- **Simplified Setup**: Just add your OpenAI API key and start transcribing
+## 🚀 Quick Start
 
-## 🚀 Features
+### 1. Installation
 
-- **🎙️ Voice Transcription**: Direct integration with OpenAI's Whisper API for accurate audio transcription
-- **📄 Automatic Page Creation**: Creates organized Logseq pages with AI-generated titles and summaries
-- **✅ Smart Task Creation**: Automatically creates tasks in Todoist based on voice content
-- **🏷️ Tag-Based Automation**: Use hashtags to control behavior (#todo, #ai, #direct)
-- **🤖 AI Processing**: Optional AI summarization and task extraction
-- **📊 Hierarchical Tasks**: Create master tasks with subtasks for better organization
-- **🗂️ Project Mapping**: Route tasks to specific Todoist projects using tags
-- **📅 Due Date Recognition**: Natural language due date parsing
-- **🔊 Wide Format Support**: MP3, M4A, WAV, WEBM, MP4, MPEG, MPGA, and AAC
+1. Download the plugin from the Logseq marketplace
+2. Enable the plugin in Logseq settings
 
-## 📋 Prerequisites
+### 2. Configuration
 
-1. **OpenAI API Key** - [Get one here](https://platform.openai.com/api-keys)
-2. **Logseq** - Version 0.8.0 or higher
-3. **Todoist API Token** (optional) - For task creation features
+#### Required: OpenAI Setup
+1. Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Open plugin settings in Logseq
+3. Enter your OpenAI API key
+4. Test the connection
 
-## 🔧 Installation
+#### Optional: Todoist Integration
+1. Get your API token from [Todoist Settings](https://todoist.com/app/settings/integrations/developer)
+2. Enter the token in plugin settings
+3. Test the connection
+4. Configure project mappings (optional)
 
-### From Logseq Marketplace (Recommended)
-1. Open Logseq Settings → Plugins
-2. Search for "VoiceFlow Automate"
-3. Click Install
+### 3. Basic Usage
 
-### Manual Installation
-1. Download the latest release from the releases page
-2. In Logseq, go to Settings → Plugins
-3. Click "Load unpacked plugin" and select the plugin folder
+1. Record audio in Logseq (using audio recorder plugin or mobile app)
+2. Place cursor on the block with the audio file
+3. Use slash command `/voiceflow` or keyboard shortcut `Cmd/Ctrl+Shift+V`
+4. The plugin will:
+   - Transcribe the audio
+   - Create a summary (if AI mode enabled)
+   - Create tasks in Todoist (if triggered)
+   - Generate a new page with the transcription
 
-## ⚙️ Configuration
+## 🎯 Spoken Hashtag Commands
 
-### Essential Setup
+Use these spoken hashtags in your voice notes to trigger actions:
 
-1. **Configure OpenAI API Key** (Required):
-   - Go to Settings → Plugins → VoiceFlow Automate
-   - Enter your OpenAI API key
-   - Select your preferred model (gpt-3.5-turbo or gpt-4)
+### Todo Creation
+- `"hashtag todo"` or `"hashtag task"` - Create task(s) in Todoist
+- `"hashtag to-do"` - Alternative spelling supported
 
-2. **Configure Todoist** (Optional):
-   - Install the Logseq Todoist plugin if you want task creation
-   - Configure your Todoist API token in that plugin
+### Processing Mode
+- `"hashtag ai"` - Use AI summarization (overrides default)
+- `"hashtag direct"` or `"hashtag literal"` - Use literal transcription
 
-### Configuration Options
+### Project Routing
+- `"hashtag [project-tag]"` - Route to specific Todoist project
+- Example: `"hashtag work"` routes to your Work project
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| **OpenAI API Key** | - | Your OpenAI API key (required) |
-| **OpenAI Model** | gpt-3.5-turbo | GPT model for summarization |
-| **Default Mode** | literal | Choose between literal or AI processing |
-| **Create Page** | true | Auto-create transcription pages |
-| **Hierarchical Tasks** | true | Create subtasks in AI mode |
-| **Keyboard Shortcut** | Ctrl+Shift+V | Customize the shortcut |
+### Priority Setting
+- `"hashtag urgent"` or `"hashtag high"` - Set priority 4
+- `"hashtag medium"` - Set priority 3
+- `"hashtag low"` - Set priority 1
 
-## 📖 Usage
+### Due Date Setting
+- `"due date tomorrow"` - Sets due date to tomorrow
+- `"due date next Friday"` - Natural language date parsing
+- `"due date January 15th"` - Specific dates supported
 
-### Basic Workflow
+## 📋 Examples
 
-1. **Add an audio file** to a Logseq block:
-   ```markdown
-   ![Voice Recording](assets/recording.m4a)
-   ```
+### Example 1: Simple Task
+```
+"Remember to call the dentist tomorrow, hashtag todo"
+```
+Creates: Single task "call the dentist" with due date tomorrow
 
-2. **Trigger transcription** using one of these methods:
-   - Type `/voiceflow` or `/transcribe`
-   - Use keyboard shortcut `Ctrl+Shift+V` (customizable)
-   - Right-click → "VoiceFlow Transcribe"
+### Example 2: AI-Processed Project Tasks
+```
+"Plan the office party: book venue, order catering, send invitations, arrange decorations, hashtag todo hashtag ai hashtag work"
+```
+Creates:
+- Master task: "Plan Office Party" (in Work project)
+- Subtasks: Book venue, Order catering, Send invitations, Arrange decorations
 
-3. **The plugin will**:
-   - Transcribe the audio using Whisper API
-   - Generate an AI title and summary
-   - Create a new organized page
-   - Extract and create tasks (if #todo is present)
-   - Add a reference to the new page
+### Example 3: Urgent Task with Due Date
+```
+"Finish the quarterly report, due date Friday, hashtag todo hashtag urgent"
+```
+Creates: High-priority task with Friday deadline
 
-### Page Structure
+## ⚙️ Advanced Configuration
 
-Each created page includes:
+### Project Mappings
 
-```markdown
-Title: AI-Generated Title
-## Summary
-- Key point 1
-- Key point 2
-- Key point 3
+Map spoken hashtags to Todoist projects:
 
-## Transcript
-[Full transcription of your voice note]
+```json
+{
+  "#work": {"id": "2234567890", "name": "Work"},
+  "#personal": {"id": "2234567891", "name": "Personal"},
+  "#health": {"id": "2234567892", "name": "Health"}
+}
 ```
 
-### Tag Commands
+### Custom AI Prompts
 
-Control plugin behavior with hashtags in your voice notes:
+Customize how AI processes your voice notes by configuring custom prompts in settings.
 
-- `#todo` - Creates tasks in Todoist
-- `#ai` - Use AI for task extraction
-- `#direct` or `#literal` - Skip AI processing
-- `#work`, `#personal` - Route to specific projects
-- `#urgent`, `#high`, `#medium`, `#low` - Set priority
+### Transcription Modes
 
-### Examples
+- **Literal**: Exact transcription → single task
+- **AI**: Intelligent processing → multiple structured tasks
 
-#### Simple Task
-*Voice:* "Buy groceries tomorrow #todo"
-- Creates transcription page
-- Creates single Todoist task with due date
+## 🔧 Troubleshooting
 
-#### Multiple Tasks with AI
-*Voice:* "Plan office party: book venue, order catering, send invitations #todo #ai"
-- Creates page with AI summary
-- Extracts individual tasks using AI
-- Creates hierarchical tasks in Todoist
+### Audio File Not Found
+- Ensure the audio file is properly embedded in the block
+- Supported formats: MP3, M4A, WAV, WebM, AAC
 
-#### Project Routing
-*Voice:* "Review quarterly reports #work #todo"
-- Creates transcription page
-- Routes task to Work project in Todoist
+### Todoist Tasks Not Created
+1. Verify API token is correct
+2. Test connection in settings
+3. Check project mappings are valid
+4. Ensure you spoke a trigger tag (#todo)
 
-## 🎯 Supported Audio Formats
+### OpenAI Errors
+- **401**: Invalid API key
+- **429**: Rate limit or quota exceeded
+- **400**: Check audio file format
 
-- **MP3** - Direct transcription
-- **M4A** - Direct transcription (iOS Voice Memos)
-- **WAV** - Direct transcription
-- **WEBM** - Direct transcription
-- **AAC** - Converted or direct transcription
-- **MP4/MPEG/MPGA** - Direct transcription
+## 📝 Workflow Tips
 
-## 🔍 Troubleshooting
+1. **Quick Capture**: Record → Add `#todo` → Auto-process
+2. **Batch Processing**: Record multiple items → Use AI mode for smart task extraction
+3. **Project Organization**: Set up project mappings for automatic routing
+4. **Meeting Notes**: Record meeting → AI summarizes → Tasks created automatically
 
-### Common Issues
+## 🆕 What's New in v2.0
 
-**"Invalid OpenAI API Key"**
-- Verify your API key in plugin settings
-- Ensure your OpenAI account has credits
-- Check if the key has the necessary permissions
-
-**"Transcription failed"**
-- Check audio file format is supported
-- Verify file size is under 25MB (Whisper limit)
-- Ensure stable internet connection
-
-**"Tasks not created"**
-- Verify Todoist plugin is installed and configured
-- Check #todo tag is present in transcription
-- Ensure project mappings are correct
-
-### Debug Mode
-
-Enable debug mode in settings to see detailed logs in the browser console (F12).
-
-## 💡 Tips
-
-- **Voice Memos on iOS**: Use M4A format for best compatibility
-- **Long recordings**: Break into smaller segments for better processing
-- **Clear speech**: Speak clearly for better transcription accuracy
-- **Project tags**: Set up project mappings for automatic task routing
-- **Templates**: Use page templates for consistent formatting
-
-## 🔒 Privacy & Security
-
-- **API Keys**: Stored locally in your Logseq graph
-- **Audio Processing**: Files sent directly to OpenAI, not stored elsewhere
-- **No Telemetry**: Plugin doesn't collect any usage data
-- **Open Source**: Full code transparency
-
-## 🆚 Comparison with v1.0
-
-| Feature | v1.0 | v2.0 (Current) |
-|---------|------|----------------|
-| External Dependencies | Required GPT3-OpenAI plugin | **Standalone** |
-| Setup Complexity | Complex (2 plugins) | **Simple** (1 plugin) |
-| API Integration | Indirect | **Direct** |
-| Maintenance | Dependent on external plugin | **Self-contained** |
-| Performance | Additional overhead | **Optimized** |
-
-## 📝 API Usage & Costs
-
-This plugin uses OpenAI's APIs:
-- **Whisper API**: ~$0.006 per minute of audio
-- **GPT-3.5**: ~$0.002 per 1K tokens
-- **GPT-4**: ~$0.03 per 1K tokens
-
-Average voice note (1-2 minutes) costs approximately $0.01-0.02.
-
-## 🐛 Known Limitations
-
-- Audio files must be under 25MB (OpenAI limit)
-- AAC files work best with optional converter service
-- Internet connection required for transcription
-- API rate limits apply based on your OpenAI tier
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+- **Standalone Todoist Integration**: No external plugins required
+- **Enhanced Tag Detection**: Better recognition of spoken hashtags
+- **Hierarchical Task Support**: Create structured task lists
+- **Due Date Recognition**: Natural language date parsing
+- **Improved AI Processing**: Better task extraction with GPT-4
 
 ## 📄 License
 
-MIT License - see LICENSE file for details
+MIT License - See LICENSE file for details
 
-## 🙏 Acknowledgments
+## 🤝 Contributing
+
+Contributions welcome! Please submit issues and pull requests on GitHub.
+
+## 🙏 Credits
 
 - OpenAI for Whisper and GPT APIs
-- Logseq team for the excellent plugin system
-- Community contributors and testers
-
-## 📮 Support
-
-For issues or feature requests, please open an issue on GitHub.
-
----
-
-**Note**: This is a standalone version of VoiceFlow Automate. If you're upgrading from v1.0, you can safely uninstall the GPT3-OpenAI plugin dependency after migrating your settings.
+- Todoist for their excellent API
+- Logseq community for feedback and support
