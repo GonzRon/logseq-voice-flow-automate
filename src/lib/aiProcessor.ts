@@ -1,12 +1,7 @@
+// src/lib/aiProcessor.ts (VoiceFlow Automate, CALLER)
 import "@logseq/libs";
-import { getPrompt } from "./prompts";
 
-/**
- * All interaction with the GPT3-OpenAI plugin models lives here.
- * We default to the { uuid } payload so the bridge won’t drop it;
- * we still keep fallbacks to be robust on different builds.
- */
-const OPENAI_PLUGIN_ID = "_79n711y6e";
+const OPENAI_PLUGIN_ID = "_79n711y6e"; // GPT3-OpenAI callee
 
 async function ensureOpenAIReady(): Promise<boolean> {
   try {
@@ -18,69 +13,73 @@ async function ensureOpenAIReady(): Promise<boolean> {
   }
 }
 
-export async function whisperTranscribeFromCurrentOrArgs(): Promise<string | null> {
+export async function transcribeCurrentBlock(): Promise<string | null> {
   const ok = await ensureOpenAIReady();
   if (!ok) {
     logseq.App.showMsg("GPT3-OpenAI plugin not available", "error");
     return null;
   }
 
-  // Prefer current block UUID (we own the outer flow)
-  const current = await logseq.Editor.getCurrentBlock();
-  const uuid = current?.uuid;
-  if (!uuid) {
-    logseq.App.showMsg("No current block", "warning");
-    return null;
-  }
-
-  // Primary: object payload (structured-clone friendly)
-  let result: unknown = await logseq.App.invokeExternalPlugin(
-    `${OPENAI_PLUGIN_ID}.models.whisperTranscribeFromBlock`,
-    { uuid }
+  // Zero-arg: no payload to drop
+  const result: unknown = await logseq.App.invokeExternalPlugin(
+    `${OPENAI_PLUGIN_ID}.models.whisperTranscribeCurrent`
   );
 
-  // Fallback 1: raw UUID (some builds do accept it)
-  if (typeof result !== "string" || !result.trim()) {
-    result = await logseq.App.invokeExternalPlugin(
-      `${OPENAI_PLUGIN_ID}.models.whisperTranscribeFromBlock`,
-      uuid
-    );
+  if (typeof result === "string" && result.trim()) {
+    console.log("[voiceflow] Transcription successful, length:", result.length);
+    return result;
   }
-
-  // If the model still fell back internally, it may still return a good string.
-  if (typeof result === "string" && result.trim()) return result;
   logseq.App.showMsg("Transcription failed or returned empty result", "error");
   return null;
 }
 
-export async function processTextWithPrompt(promptKeyOrText: string, text: string): Promise<string | null> {
+/**
+ * Prefer the zero-arg + primitive summarizer.
+ * If needed, fallback to a single JSON-string payload call.
+ */
+export async function summarizeTranscript(promptKeyOrText: string, transcript?: string): Promise<string | null> {
   const ok = await ensureOpenAIReady();
   if (!ok) {
     logseq.App.showMsg("GPT3-OpenAI plugin not available", "error");
     return null;
   }
-  const p = getPrompt(promptKeyOrText);
+
+  // Preferred: primitive only (callee uses cached _lastTranscript)
   try {
+    console.log("[voiceflow] Summarizing cached transcript with key:", promptKeyOrText);
     const out = await logseq.App.invokeExternalPlugin(
-      `${OPENAI_PLUGIN_ID}.models.processText`,
-      p.prompt,
-      text
+      `${OPENAI_PLUGIN_ID}.models.summarizeLastTranscriptWithPromptKey`,
+      String(promptKeyOrText) // primitive survives
     );
     if (typeof out === "string" && out.trim()) return out;
-    return null;
+    console.warn("[voiceflow] summarizeLastTranscriptWithPromptKey returned empty");
   } catch (e) {
-    console.error("[voiceflow] processTextWithPrompt error:", e);
-    return null;
+    console.warn("[voiceflow] summarizeLastTranscriptWithPromptKey error:", e);
   }
+
+  // Fallback: single JSON string payload to processTextWithPrompt
+  if (typeof transcript === "string" && transcript.trim()) {
+    try {
+      const isKey = promptKeyOrText.includes(".") || promptKeyOrText.length < 50;
+      const payload = isKey
+        ? JSON.stringify({ text: transcript, promptKey: promptKeyOrText })
+        : JSON.stringify({ text: transcript, customPrompt: promptKeyOrText });
+
+      console.log("[voiceflow] Fallback summarization via JSON-string payload");
+      const out2 = await logseq.App.invokeExternalPlugin(
+        `${OPENAI_PLUGIN_ID}.models.processTextWithPrompt`,
+        payload
+      );
+      if (typeof out2 === "string" && out2.trim()) return out2;
+    } catch (e) {
+      console.error("[voiceflow] Fallback processTextWithPrompt error:", e);
+    }
+  }
+
+  logseq.App.showMsg("Summarization failed", "error");
+  return null;
 }
 
-/**
- * Extract a Title line from the summarizer output:
- * expects:
- *   Title: <title>
- *   Summary:
- *   - ...
- */
 export function extractTitleFromSummary(summary: string): string {
   if (!summary) return "";
   const m = summary.match(/^\s*Title:\s*(.+)\s*$/m);
