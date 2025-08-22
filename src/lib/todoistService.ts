@@ -12,7 +12,7 @@ export interface TodoistTask {
 export async function createTodoistTasks(
   tasks: string[],
   config: TodoConfig
-): Promise {
+): Promise<any[]> {
   const createdTasks = []
 
   try {
@@ -67,7 +67,7 @@ export async function createTodoistTasks(
   }
 }
 
-async function createSingleTask(taskData: TodoistTask): Promise {
+async function createSingleTask(taskData: TodoistTask): Promise<any> {
   try {
     // Invoke the todoist plugin's send task functionality
     const result = await logseq.App.invokeExternalPlugin(

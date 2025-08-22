@@ -4,27 +4,19 @@ import { StatusDisplay } from './StatusDisplay'
 
 export const VoiceFlowApp: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
-  const [message, setMessage] = useState('')
+  // Status state removed since it's not being updated currently
+  // Can be added back when status updates are implemented
 
   useEffect(() => {
-    const handleShow = () => setIsVisible(true)
-    const handleHide = () => setIsVisible(false)
-
-    // Listen for UI events
-    logseq.on('ui:visible:changed', ({ visible }) => {
+    // Listen for UI visibility changes
+    const handleVisibilityChange = ({ visible }: { visible: boolean }) => {
       setIsVisible(visible)
-    })
+    }
 
-    // Listen for processing status updates
-    logseq.on('voiceflow:status', ({ status, message }) => {
-      setStatus(status)
-      setMessage(message)
-    })
+    logseq.on('ui:visible:changed', handleVisibilityChange)
 
     return () => {
-      logseq.off('ui:visible:changed', handleShow)
-      logseq.off('voiceflow:status', handleHide)
+      logseq.off('ui:visible:changed', handleVisibilityChange)
     }
   }, [])
 
@@ -43,7 +35,7 @@ export const VoiceFlowApp: React.FC = () => {
       </div>
 
       <div className="voiceflow-content">
-        <StatusDisplay status={status} message={message} />
+        <StatusDisplay status="idle" message="" />
         <ConfigPanel />
       </div>
     </div>
