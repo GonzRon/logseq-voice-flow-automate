@@ -28,9 +28,9 @@ export const settingsSchema: SettingSchemaDesc[] = [
   {
     key: 'todoTriggerTags',
     type: 'string',
-    default: '#todo, #task',
+    default: '#todo, #to-do, #task, #tasks',
     title: 'Todo Trigger Tags',
-    description: 'Comma-separated tags that trigger todo creation (e.g., #todo, #task)',
+    description: 'Comma-separated tags that trigger todo creation (e.g., #todo, #to-do, #task)',
   },
   {
     key: 'defaultTranscriptionMode',

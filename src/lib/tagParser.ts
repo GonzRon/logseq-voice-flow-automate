@@ -29,19 +29,26 @@ export function parseTags(transcript: string, blockContent: string, settings: an
   }
 
   // Normalize spoken hashtags to actual hashtags for processing
+  // Also handle variations like "to-do" vs "todo"
   let normalizedText = combinedText
-    .replace(/hashtag\s+(\w+)/gi, '#$1')
-    .replace(/hash tag\s+(\w+)/gi, '#$1');
+    .replace(/hashtag\s+(\w+(-\w+)*)/gi, '#$1')
+    .replace(/hash tag\s+(\w+(-\w+)*)/gi, '#$1')
+    .replace(/#to-do/gi, '#todo')  // Normalize to-do to todo
+    .replace(/hashtag to-do/gi, '#todo');  // Handle spoken "hashtag to-do"
 
   // Check for todo triggers (both spoken and written)
   const todoTriggers = Array.isArray(settings?.todoTriggerTags)
     ? settings.todoTriggerTags
     : (settings?.todoTriggerTags || '#todo, #task').split(',').map((t: string) => t.trim());
 
-  for (const trigger of todoTriggers) {
+  // Also check for common variations
+  const todoVariations = ['#todo', '#to-do', '#task', '#todos', '#tasks'];
+
+  for (const trigger of [...todoTriggers, ...todoVariations]) {
     if (normalizedText.toLowerCase().includes(trigger.toLowerCase())) {
       config.createTodo = true;
-      config.extractedTags.push(trigger);
+      config.extractedTags.push('#todo');  // Normalize to #todo
+      console.log(`[VoiceFlow] Found todo trigger: ${trigger}`);
       break;
     }
   }
@@ -77,8 +84,11 @@ export function parseTags(transcript: string, blockContent: string, settings: an
     }
   }
 
-  // Parse due date from spoken phrases
+  // Parse due date from spoken phrases - handle "hashtag due date" pattern
   config.dueDate = extractDueDate(transcript);
+  if (config.dueDate) {
+    console.log(`[VoiceFlow] Extracted due date: ${config.dueDate}`);
+  }
 
   // Parse priority
   if (normalizedText.includes('#urgent') || normalizedText.includes('#high') ||
@@ -107,6 +117,13 @@ export function parseTags(transcript: string, blockContent: string, settings: an
     }
   }
 
+  console.log(`[VoiceFlow] Tag parsing complete:`, {
+    createTodo: config.createTodo,
+    useAI: config.useAI,
+    dueDate: config.dueDate,
+    extractedTags: config.extractedTags
+  });
+
   return config;
 }
 
@@ -114,20 +131,30 @@ export function parseTags(transcript: string, blockContent: string, settings: an
  * Extract due date from natural language
  */
 function extractDueDate(text: string): string | undefined {
-  // Handle spoken "due date" patterns
-  const patterns = [
-    /due date?\s+(.+?)(?:\s+hashtag|\s+hash tag|$)/i,
+  // Handle spoken "hashtag due date" pattern more explicitly
+  // Look for "hashtag due date [date]" or "due date [date]"
+  const dueDatePatterns = [
+    /hashtag due date\s+(.+?)(?:\s*hashtag|$)/i,
+    /hash tag due date\s+(.+?)(?:\s*hashtag|$)/i,
+    /due date\s+(.+?)(?:\s*hashtag|$)/i,
     /by\s+(.+?)(?:\s+hashtag|\s+hash tag|$)/i,
     /deadline\s+(.+?)(?:\s+hashtag|\s+hash tag|$)/i,
     /due\s+(.+?)(?:\s+hashtag|\s+hash tag|$)/i
   ];
 
-  for (const pattern of patterns) {
+  for (const pattern of dueDatePatterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      const duePhrase = match[1].trim();
-      // Clean up common date phrases
+      let duePhrase = match[1].trim();
+
+      // Clean up the phrase - remove trailing punctuation or "hashtag" words
+      duePhrase = duePhrase
+        .replace(/[.,;]?\s*$/, '')  // Remove trailing punctuation
+        .replace(/\s*(hashtag|hash tag).*$/i, '');  // Remove any trailing hashtag mentions
+
+      // If we got a valid date phrase, return it
       if (duePhrase && !duePhrase.includes('#')) {
+        console.log(`[VoiceFlow] Extracted due date from pattern: "${duePhrase}"`);
         return duePhrase;
       }
     }
@@ -182,16 +209,19 @@ function extractDueDate(text: string): string | undefined {
  */
 function removeSpokenTags(text: string): string {
   let cleaned = text
-    // Remove spoken hashtags
-    .replace(/hashtag\s+\w+/gi, '')
-    .replace(/hash tag\s+\w+/gi, '')
+    // Remove spoken hashtags (including hyphenated ones)
+    .replace(/hashtag\s+[\w-]+/gi, '')
+    .replace(/hash tag\s+[\w-]+/gi, '')
     // Remove written hashtags
-    .replace(/#\w+/g, '')
-    // Remove due date phrases
-    .replace(/due date?\s+\w+/gi, '')
-    .replace(/deadline\s+\w+/gi, '')
-    // Clean up extra whitespace
+    .replace(/#[\w-]+/g, '')
+    // Remove due date phrases (but keep the actual task text)
+    .replace(/,?\s*(hashtag\s+)?due date\s+[\w\s]+(?=\.|,|$)/gi, '')
+    .replace(/deadline\s+[\w\s]+(?=\.|,|$)/gi, '')
+    // Clean up extra whitespace and punctuation
     .replace(/\s+/g, ' ')
+    .replace(/,\s*,/g, ',')  // Remove double commas
+    .replace(/,\s*\./g, '.')  // Clean up comma before period
+    .replace(/\s*,\s*$/g, '')  // Remove trailing comma
     .trim();
 
   return cleaned;
