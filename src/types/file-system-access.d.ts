@@ -1,6 +1,37 @@
 // src/lib/audioHandler.ts - Enhanced audio file handling with replacement and deletion
 import "@logseq/libs";
 
+// Type definitions for File System Access API
+declare global {
+  interface Window {
+    showDirectoryPicker(options?: {
+      id?: string;
+      mode?: 'read' | 'readwrite';
+      startIn?: 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos';
+    }): Promise<FileSystemDirectoryHandle>;
+  }
+
+  interface FileSystemDirectoryHandle {
+    kind: 'directory';
+    name: string;
+    getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<FileSystemDirectoryHandle>;
+    getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
+    removeEntry(name: string, options?: { recursive?: boolean }): Promise<void>;
+  }
+
+  interface FileSystemFileHandle {
+    kind: 'file';
+    name: string;
+    getFile(): Promise<File>;
+    createWritable(): Promise<FileSystemWritableFileStream>;
+  }
+
+  interface FileSystemWritableFileStream extends WritableStream {
+    write(data: BufferSource | Blob | string): Promise<void>;
+    close(): Promise<void>;
+  }
+}
+
 export interface AudioConversionConfig {
   converterHost?: string;
   converterPort?: number;

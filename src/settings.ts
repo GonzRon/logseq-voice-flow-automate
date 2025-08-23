@@ -138,6 +138,34 @@ export const settingsSchema: SettingSchemaDesc[] = [
     title: 'AAC Converter Port',
     description: 'Port for optional AAC converter service',
   },
+  {
+    key: 'enableAACReplacement',
+    type: 'boolean',
+    default: true,
+    title: 'Enable AAC File Replacement',
+    description: 'Replace AAC files with WebM after conversion (default: enabled). Disable for original behavior.',
+  },
+  {
+    key: 'replaceAACWithWebM',
+    type: 'boolean',
+    default: true,
+    title: 'Update Block References',
+    description: 'Update block references from AAC to WebM after conversion (only applies if replacement is enabled)',
+  },
+  {
+    key: 'autoRequestFileAccess',
+    type: 'boolean',
+    default: false,
+    title: 'Auto-Request File Access',
+    description: 'Automatically request file system access on plugin load (enables automatic file deletion)',
+  },
+  {
+    key: 'deleteOriginalAAC',
+    type: 'boolean',
+    default: true,
+    title: 'Delete Original AAC',
+    description: 'Automatically delete original AAC files after successful conversion (requires file access permission)',
+  },
   // Keyboard Shortcuts
   {
     key: 'voiceFlowShortcut',

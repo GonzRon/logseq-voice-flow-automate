@@ -239,7 +239,7 @@ function removeSpokenTags(text: string): string {
 /**
  * Parse tags only from block content (for non-transcription use)
  */
-export function parseBlockTags(blockContent: string, settings: any): Partial<TodoConfig> {
+export function parseBlockTags(blockContent: string): Partial<TodoConfig> {
   const config: Partial<TodoConfig> = {
     extractedTags: []
   };

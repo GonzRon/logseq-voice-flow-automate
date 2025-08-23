@@ -4,6 +4,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { VoiceFlowApp } from './components/VoiceFlowApp';
 import { runVoiceFlow, processVoiceNote } from "./lib/voiceProcessor";
+import { initializeFileAccess } from "./lib/audioHandler";
 import { settingsSchema } from './settings';
 import './styles/index.css';
 
@@ -20,6 +21,9 @@ async function main() {
       <VoiceFlowApp />
     </React.StrictMode>
   );
+
+  // Initialize file access if enabled
+  await initializeFileAccess();
 
   // Register slash command
   logseq.Editor.registerSlashCommand("VoiceFlow: Transcribe & Process", async () => {
@@ -64,6 +68,13 @@ async function main() {
     logseq.showMainUI();
   });
 
+  logseq.App.registerCommandPalette({
+    key: "voiceflow-request-file-access",
+    label: "VoiceFlow: Request file access (for automatic AAC deletion)"
+  }, async () => {
+    await initializeFileAccess();
+  });
+
   // Model for UI
   function createModel() {
     return {
@@ -74,7 +85,7 @@ async function main() {
   }
 
   logseq.provideModel(createModel());
-  
+
   logseq.setMainUIInlineStyle({
     zIndex: 11,
   });
@@ -82,13 +93,18 @@ async function main() {
   // Handle settings changes
   logseq.onSettingsChanged((newSettings, oldSettings) => {
     console.log("[VoiceFlow] Settings changed", newSettings);
-    
+
     // Re-register shortcut if changed
     if (newSettings.voiceFlowShortcut !== oldSettings.voiceFlowShortcut) {
       const newShortcut = newSettings.voiceFlowShortcut || "mod+shift+v";
       logseq.App.registerCommandShortcut({ binding: newShortcut }, async () => {
         await runVoiceFlow();
       });
+    }
+
+    // Initialize file access if just enabled
+    if (newSettings.autoRequestFileAccess && !oldSettings.autoRequestFileAccess) {
+      initializeFileAccess();
     }
   });
 

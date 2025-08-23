@@ -1,7 +1,7 @@
 // src/lib/voiceProcessor.ts - Enhanced voice processing with AI metadata extraction
 import "@logseq/libs";
 import { whisperTranscribe, generateText } from "./openai";
-import { getAudioFile } from "./audioHandler";
+import { getAudioFileWithReplacement } from "./audioHandler";
 import { createTodoistTasks } from "./todoistService";
 import { createEnhancedVoicePage } from "./pageCreator";
 import { getCustomPrompt } from "./prompts";
@@ -57,11 +57,20 @@ export async function runVoiceFlow(): Promise<void> {
   }
 
   try {
-    // Step 1: Get the audio file
+    // Step 1: Get the audio file (and potentially convert/replace it)
     logseq.App.showMsg("Loading audio file...", "info");
-    const audioFile = await getAudioFile(current.content);
-    if (!audioFile) {
+    const audioResult = await getAudioFileWithReplacement(current.content, current.uuid);
+    if (!audioResult) {
       return;
+    }
+
+    const audioFile = audioResult.file;
+
+    // Log conversion info
+    if (audioResult.wasConverted) {
+      console.log("[VoiceFlow] Audio was converted from AAC to WebM");
+      console.log("[VoiceFlow] Original path:", audioResult.originalPath);
+      console.log("[VoiceFlow] Converted path:", audioResult.convertedPath);
     }
 
     // Step 2: Transcribe the audio
