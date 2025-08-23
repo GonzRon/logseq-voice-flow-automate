@@ -1,4 +1,4 @@
-// src/lib/prompts.ts - Prompt management for VoiceFlow Automate
+// src/lib/prompts.ts - Enhanced prompt management with metadata extraction
 import toml from "toml";
 import promptsToml from "./prompts.toml?raw";
 
@@ -75,61 +75,49 @@ ${transcript}
 }
 
 /**
- * Build a tasks extraction prompt using TOML template or fallback
+ * Build an enhanced tasks prompt that extracts metadata AND tasks
  */
-export function buildTasksPrompt(transcript: string): string {
-  // Try to use TOML prompt first
-  if (tomlPrompts.voiceflow_tasks) {
-    return tomlPrompts.voiceflow_tasks.replace("<<<NOTE>>>", transcript);
+export function buildEnhancedTasksPrompt(transcript: string): string {
+  return `
+You are an intelligent task parser. Analyze the transcript and extract:
+1) All actionable tasks
+2) Metadata like due dates, priorities, and tags
+3) Whether tasks should be hierarchical or flat
+
+IMPORTANT: Look for spoken patterns like:
+- "hashtag to do" or "hashtag todo" → means create tasks
+- "hashtag due date [date]" or "due date [date]" → extract the date
+- "hashtag urgent/high/medium/low" → priority levels
+- "hashtag [word]" → project or context tags
+
+Output STRICT JSON:
+{
+  "metadata": {
+    "has_todo_trigger": boolean,  // true if "hashtag todo" or similar found
+    "due_date": "string or null",  // e.g., "Monday", "tomorrow", "next Friday"
+    "priority": 1-4,  // 1=low, 2=normal, 3=medium, 4=high/urgent
+    "tags": ["string"],  // extracted hashtags (without #)
+    "mode": "ai" | "literal"  // "ai" is always the default, return "literal" if "hashtag direct" or "hashtag literal" is found.
+  },
+  "tasks": {
+    "parent": {
+      "title": "string"  // Short, actionable parent task title (if multiple subtasks)
+    } | null,
+    "subtasks": [
+      {
+        "title": "string"  // Individual task title
+      }
+    ]
   }
-
-  // Fallback to hardcoded prompt
-  return `
-You turn a short note into Todoist-ready tasks.
-
-Output JSON ONLY, with this shape:
-{
-  "parent": { "title": "Master task title (if needed)" } | null,
-  "tasks": [
-     { "title": "Actionable task", "due": "optional natural date", "projectTag": "optional mapped tag" }
-  ]
 }
 
-Guidelines:
-- Create a small, balanced set of tasks (3–7 usually). Not too granular; not too vague.
-- If it's a single clear action, prefer one task and parent=null.
-- If multiple coherent actions: use a short parent summary and place the actions in tasks[].
-- Remove control hashtags like #todo, #ai, #direct and project tags from task titles.
-- Due dates: infer reasonable due phrases only if user said something like 'tomorrow', 'next Friday', 'in two weeks'.
-- Do NOT invent deadlines that weren't implied.
-
-Now convert this note:
-${transcript}
-`.trim();
-}
-
-/**
- * Build a strict-JSON tasks prompt
- */
-export function buildTasksJSONPrompt(transcript: string): string {
-  return `
-You turn a short note into Todoist-ready tasks.
-
-Output STRICT JSON ONLY:
-{
-  "parent": { "title": "Master task title (if needed)", "due_date": "YYYY-MM-DD or null" } | null,
-  "subtasks": [
-     { "title": "Actionable task", "due_date": "YYYY-MM-DD or null" }
-  ]
-}
-
-Guidelines:
-- 2–8 concrete tasks when there are multiple actions; a single task if only one clear action exists.
-- Remove control hashtags (#todo, #ai, #direct, project tags) from titles.
-- Infer due dates only if clearly stated ("tomorrow", "next Friday"); otherwise null.
-- Do NOT invent dates.
-
-Return ONLY valid JSON. No explanations.
+Rules:
+- Extract due dates EXACTLY as spoken (e.g., "Monday", "tomorrow", "next week")
+- Don't add due dates to individual subtasks
+- Create parent task only if there are multiple related subtasks
+- Keep task titles concise and actionable
+- Remove control words like "hashtag", "todo", etc. from task titles
+- If only one clear action, use parent: null and single subtask
 
 TRANSCRIPT:
 <<<
@@ -151,13 +139,12 @@ export function getCustomPrompt(
     if (customPrompt) {
       return customPrompt.replace("<<<TRANSCRIPT>>>", transcript);
     }
-    // Use JSON prompt for better structured output
     return buildSummarizeJSONPrompt(transcript);
   } else {
     const customPrompt = settings?.taskPrompt;
     if (customPrompt) {
       return customPrompt.replace("<<<NOTE>>>", transcript);
     }
-    return buildTasksJSONPrompt(transcript);
+    return buildEnhancedTasksPrompt(transcript);
   }
 }

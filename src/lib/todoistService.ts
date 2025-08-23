@@ -1,7 +1,6 @@
-// src/lib/todoistService.ts - Direct Todoist API integration for VoiceFlow Automate
+// src/lib/todoistService.ts - Enhanced Todoist integration with proper due date handling
 import { TodoConfig } from './tagParser'
 
-// Todoist API types (minimal implementation)
 interface TodoistApiTask {
   id?: string
   content: string
@@ -17,15 +16,6 @@ interface TodoistApiResponse {
   content: string
   project_id: string
   [key: string]: any
-}
-
-export interface TodoistTask {
-  content: string
-  projectId?: string
-  labels?: string[]
-  priority?: number
-  dueString?: string
-  parentId?: string
 }
 
 /**
@@ -56,6 +46,7 @@ class TodoistAPIClient {
       if (!response.ok) {
         const error = await response.text()
         console.error('[VoiceFlow] Todoist API error:', error)
+        console.error('[VoiceFlow] Task data that failed:', task)
         throw new Error(`Todoist API error: ${response.status}`)
       }
 
@@ -66,9 +57,6 @@ class TodoistAPIClient {
     }
   }
 
-  /**
-   * Get all projects
-   */
   async getProjects(): Promise<any[]> {
     try {
       const response = await fetch(`${this.baseUrl}/projects`, {
@@ -89,9 +77,6 @@ class TodoistAPIClient {
     }
   }
 
-  /**
-   * Get all labels
-   */
   async getLabels(): Promise<any[]> {
     try {
       const response = await fetch(`${this.baseUrl}/labels`, {
@@ -117,15 +102,52 @@ class TodoistAPIClient {
  * Get or validate Todoist API token from settings
  */
 function getTodoistApiToken(): string | null {
-  // Check if user has configured Todoist API token
   const apiToken = logseq.settings?.todoistApiToken
-
   if (!apiToken || apiToken === '') {
     console.log('[VoiceFlow] No Todoist API token configured')
     return null
   }
-
   return apiToken
+}
+
+/**
+ * Validate and clean due date string for Todoist
+ */
+function validateDueDate(dueDate: string | undefined): string | undefined {
+  if (!dueDate) return undefined;
+
+  // Trim and validate the due date isn't too long (Todoist has limits)
+  const cleaned = dueDate.trim();
+
+  // If it's longer than 50 characters, it's probably not a valid date
+  if (cleaned.length > 50) {
+    console.warn(`[VoiceFlow] Due date too long, ignoring: "${cleaned.substring(0, 50)}..."`);
+    return undefined;
+  }
+
+  // List of valid date patterns Todoist understands
+  const validPatterns = [
+    'today', 'tomorrow', 'monday', 'tuesday', 'wednesday', 'thursday',
+    'friday', 'saturday', 'sunday', 'next week', 'next month',
+    /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i,
+    /^\d{1,2}\/\d{1,2}/,  // MM/DD format
+    /^in \d+ (day|week|month)/i
+  ];
+
+  // Check if it matches any valid pattern
+  const isValid = validPatterns.some(pattern => {
+    if (typeof pattern === 'string') {
+      return cleaned.toLowerCase() === pattern;
+    }
+    return pattern.test(cleaned);
+  });
+
+  if (!isValid && cleaned.length > 20) {
+    console.warn(`[VoiceFlow] Due date doesn't match known patterns: "${cleaned}"`);
+    return undefined;
+  }
+
+  return cleaned;
 }
 
 /**
@@ -137,35 +159,39 @@ export async function createTodoistTasks(
 ): Promise<any[]> {
   const createdTasks = []
 
-  // Get API token
   const apiToken = getTodoistApiToken()
   if (!apiToken) {
     console.log('[VoiceFlow] Todoist integration not configured - skipping task creation')
     return []
   }
 
-  // Initialize API client
   const todoistApi = new TodoistAPIClient(apiToken)
 
   try {
+    // Validate the due date once
+    const validatedDueDate = validateDueDate(config.dueDate);
+
     // Determine if we should create hierarchical structure
     const shouldCreateHierarchy =
       config.useAI &&
       tasks.length > 1 &&
+      config.masterTaskTitle &&
       logseq.settings?.hierarchicalTasks
 
     let parentTask: TodoistApiResponse | null = null
 
     if (shouldCreateHierarchy && config.masterTaskTitle) {
-      // Create master task
+      // Create master task WITH due date
       const masterTaskData: TodoistApiTask = {
         content: config.masterTaskTitle,
         project_id: config.projectId,
         labels: config.labels,
         priority: config.priority,
-        due_string: config.dueDate
+        // Only add due_string if it's valid
+        ...(validatedDueDate && { due_string: validatedDueDate })
       }
 
+      console.log('[VoiceFlow] Creating master task:', masterTaskData)
       parentTask = await todoistApi.createTask(masterTaskData)
 
       if (parentTask) {
@@ -181,10 +207,12 @@ export async function createTodoistTasks(
         project_id: config.projectId,
         labels: config.labels,
         priority: config.priority,
-        due_string: config.dueDate,
-        parent_id: parentTask?.id
+        // Don't add due date to subtasks when there's a parent
+        ...(parentTask ? { parent_id: parentTask.id } :
+            (!shouldCreateHierarchy && validatedDueDate ? { due_string: validatedDueDate } : {}))
       }
 
+      console.log('[VoiceFlow] Creating task:', taskData)
       const created = await todoistApi.createTask(taskData)
       if (created) {
         createdTasks.push(created)
@@ -203,7 +231,7 @@ export async function createTodoistTasks(
   } catch (error) {
     console.error('[VoiceFlow] Error creating Todoist tasks:', error)
     logseq.App.showMsg(
-      'Failed to create Todoist tasks. Please check your API token in settings.',
+      'Failed to create Todoist tasks. Check console for details.',
       'warning'
     )
     return []
@@ -215,16 +243,13 @@ export async function createTodoistTasks(
  */
 export async function verifyTodoistConnection(): Promise<boolean> {
   const apiToken = getTodoistApiToken()
-  if (!apiToken) {
-    return false
-  }
+  if (!apiToken) return false
 
   const todoistApi = new TodoistAPIClient(apiToken)
 
   try {
-    // Try to get projects as a connection test
     const projects = await todoistApi.getProjects()
-    return projects.length >= 0 // Even 0 projects means connection works
+    return projects.length >= 0
   } catch (error) {
     console.error('[VoiceFlow] Todoist connection test failed:', error)
     return false
@@ -236,9 +261,7 @@ export async function verifyTodoistConnection(): Promise<boolean> {
  */
 export async function getTodoistProjects(): Promise<{ id: string; name: string }[]> {
   const apiToken = getTodoistApiToken()
-  if (!apiToken) {
-    return []
-  }
+  if (!apiToken) return []
 
   const todoistApi = new TodoistAPIClient(apiToken)
 
@@ -259,9 +282,7 @@ export async function getTodoistProjects(): Promise<{ id: string; name: string }
  */
 export async function getTodoistLabels(): Promise<string[]> {
   const apiToken = getTodoistApiToken()
-  if (!apiToken) {
-    return []
-  }
+  if (!apiToken) return []
 
   const todoistApi = new TodoistAPIClient(apiToken)
 

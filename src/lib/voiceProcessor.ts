@@ -1,8 +1,7 @@
-// src/lib/voiceProcessor.ts - Enhanced voice processing with full gherkin implementation
+// src/lib/voiceProcessor.ts - Enhanced voice processing with AI metadata extraction
 import "@logseq/libs";
-import { whisperTranscribe, summarizeText, extractTasks } from "./openai";
+import { whisperTranscribe, generateText } from "./openai";
 import { getAudioFile } from "./audioHandler";
-import { parseTags } from "./tagParser";
 import { createTodoistTasks } from "./todoistService";
 import { createEnhancedVoicePage } from "./pageCreator";
 import { getCustomPrompt } from "./prompts";
@@ -81,9 +80,60 @@ export async function runVoiceFlow(): Promise<void> {
     console.log("[VoiceFlow] Transcription successful, length:", transcript.length);
     console.log("[VoiceFlow] Transcript sample:", transcript.substring(0, 200));
 
-    // Step 3: Parse tags from BOTH transcript AND block content
-    const config = parseTags(transcript, current.content, logseq.settings);
-    console.log("[VoiceFlow] Parsed config:", config);
+    // Step 3: Use AI to extract metadata AND tasks in one go
+    logseq.App.showMsg("Processing with AI...", "info");
+
+    const taskPrompt = getCustomPrompt('tasks', logseq.settings, transcript);
+    const taskResult = await generateText(taskPrompt, {
+      apiKey,
+      completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-4o",
+      temperature: 1,
+      maxCompletionTokens: 4000,
+      completionEndpoint: logseq.settings?.["openAIEndpoint"]
+    });
+
+    let taskData: any = null;
+    let config: any = {
+      createTodo: false,
+      useAI: false,
+      labels: [],
+      priority: 1,
+      cleanText: transcript,
+      extractedTags: []
+    };
+
+    if (taskResult) {
+      try {
+        taskData = JSON.parse(taskResult);
+        console.log("[VoiceFlow] AI extracted data:", taskData);
+
+        // Use AI-extracted metadata
+        if (taskData.metadata) {
+          config.createTodo = taskData.metadata.has_todo_trigger || false;
+          config.useAI = taskData.metadata.mode === 'ai';
+          config.priority = taskData.metadata.priority || 1;
+          config.dueDate = taskData.metadata.due_date;
+          config.extractedTags = (taskData.metadata.tags || []).map((t: string) =>
+            t.startsWith('#') ? t : `#${t}`
+          );
+
+          // Map project tags if configured
+          const projectMappings = logseq.settings?.projectMappings || {};
+          for (const tag of config.extractedTags) {
+            if (projectMappings[tag]) {
+              config.projectId = projectMappings[tag].id;
+              config.projectName = projectMappings[tag].name;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[VoiceFlow] Failed to parse AI task data:", e);
+        // Fall back to simple defaults
+        config.createTodo = transcript.toLowerCase().includes('todo') ||
+                           transcript.toLowerCase().includes('to do');
+      }
+    }
 
     // Step 4: Generate summary (if AI mode or creating page)
     let summary = null;
@@ -92,24 +142,17 @@ export async function runVoiceFlow(): Promise<void> {
     if (config.useAI || logseq.settings?.["createTranscriptionPage"] !== false) {
       logseq.App.showMsg("Generating summary...", "info");
 
-      // Get the appropriate prompt
       const summarizePrompt = getCustomPrompt('summary', logseq.settings, transcript);
-
-      const summaryResult = await summarizeText(
-        transcript,
-        summarizePrompt,
+      const summaryResult = await generateText(summarizePrompt, {
         apiKey,
-        {
-          completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-4o",
+        completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-4o",
           temperature: 1,
           maxCompletionTokens: 4000,
-          completionEndpoint: logseq.settings?.["openAIEndpoint"]
-        }
-      );
+        completionEndpoint: logseq.settings?.["openAIEndpoint"]
+      });
 
       if (summaryResult) {
         try {
-          // Try to parse as JSON first (if using JSON prompt)
           const parsed = JSON.parse(summaryResult);
           if (parsed.title) {
             title = parsed.title;
@@ -118,7 +161,6 @@ export async function runVoiceFlow(): Promise<void> {
             summary = parsed.abstract;
           }
         } catch {
-          // Fallback: extract title from text format
           summary = summaryResult;
           const extractedTitle = extractTitleFromSummary(summaryResult);
           if (extractedTitle) {
@@ -130,56 +172,43 @@ export async function runVoiceFlow(): Promise<void> {
 
     // Step 5: Create tasks if needed
     let tasks: string[] = [];
+    let masterTaskTitle: string | undefined;
 
-    if (config.createTodo) {
-      logseq.App.showMsg("Creating tasks...", "info");
-
-      if (config.useAI) {
-        // Use AI to extract tasks with proper prompt
-        const taskPrompt = getCustomPrompt('tasks', logseq.settings, config.cleanText);
-
-        const taskData = await extractTasks(
-          taskPrompt,
-          apiKey,
-          {
-            completionEngine: logseq.settings?.["openAICompletionEngine"] || "gpt-4o",
-            completionEndpoint: logseq.settings?.["openAIEndpoint"]
-          }
-        );
-
-        if (taskData) {
-          // Handle both formats (tasks/subtasks)
-          const taskList = taskData.tasks || taskData.subtasks || [];
-          tasks = taskList.map((t: any) => t.title);
-          if (taskData.parent?.title) {
-            config.masterTaskTitle = taskData.parent.title;
-          }
-
-          console.log("[VoiceFlow] Extracted tasks:", tasks);
-          console.log("[VoiceFlow] Master task:", config.masterTaskTitle);
-        }
-      } else {
-        // Use literal text as single task
-        tasks = [config.cleanText];
+    if (config.createTodo && taskData?.tasks) {
+      // Use the AI-generated parent title if available
+      if (taskData.tasks.parent?.title) {
+        masterTaskTitle = taskData.tasks.parent.title;
+        config.masterTaskTitle = masterTaskTitle;
       }
+
+      // Extract subtask titles
+      tasks = (taskData.tasks.subtasks || []).map((t: any) => t.title);
+
+      console.log("[VoiceFlow] Tasks to create:", tasks);
+      console.log("[VoiceFlow] Master task:", masterTaskTitle);
 
       // Create tasks in Todoist if configured
       if (tasks.length > 0) {
         try {
-          const createdTasks = await createTodoistTasks(tasks, config);
+          // For Todoist, only add due date to parent task in AI mode
+          const todoistConfig = {
+            ...config,
+            // Only set due date if we have a master task (hierarchical mode)
+            dueDate: masterTaskTitle ? config.dueDate : undefined
+          };
+
+          const createdTasks = await createTodoistTasks(tasks, todoistConfig);
           if (createdTasks.length > 0) {
             logseq.App.showMsg(`Created ${createdTasks.length} task(s) in Todoist`, "success");
           }
         } catch (error) {
           console.warn("[VoiceFlow] Todoist integration not available or failed:", error);
-          // Continue - tasks will still be added to the page
         }
       }
     }
 
     // Step 6: Create enhanced transcription page
     if (logseq.settings?.["createTranscriptionPage"] !== false) {
-      // Get current page for source reference
       const currentPage = await logseq.Editor.getCurrentPage();
       const sourceBlock = currentPage?.name ? `[[${currentPage.name}]]` : undefined;
 
@@ -200,26 +229,21 @@ export async function runVoiceFlow(): Promise<void> {
 
         try {
           if (referenceMode === "inline") {
-            // Re-fetch the current block to ensure we have the latest content
             const freshBlock = await logseq.Editor.getBlock(current.uuid);
             if (freshBlock) {
-              // Add reference inline in the same block
               const updatedContent = freshBlock.content + "\n" + pageReference;
               await logseq.Editor.updateBlock(freshBlock.uuid, updatedContent);
               console.log(`[VoiceFlow] Added inline page reference: ${pageName}`);
             }
           } else if (referenceMode === "child") {
-            // Add reference as a child block
             await logseq.Editor.insertBlock(current.uuid, pageReference, {
               sibling: false,
               before: false
             });
             console.log(`[VoiceFlow] Added child block with page reference: ${pageName}`);
           }
-          // If "none", don't add any reference
         } catch (error) {
           console.error("[VoiceFlow] Failed to add page reference:", error);
-          // Continue anyway - the page was created successfully
         }
 
         logseq.App.showMsg(`✅ Transcribed to: ${pageName}`, "success");
@@ -228,18 +252,15 @@ export async function runVoiceFlow(): Promise<void> {
         if (logseq.settings?.["autoOpenCreatedPage"]) {
           setTimeout(() => {
             logseq.Editor.openPage(pageName);
-          }, 500); // Small delay to ensure page is fully created
+          }, 500);
         }
       }
     }
 
-    // Step 7: Clean up audio reference if configured (DISABLED if page reference is added inline)
+    // Step 7: Clean up audio reference if configured
     if (logseq.settings?.["autoDeleteProcessedAudio"]) {
       const referenceMode = logseq.settings?.["addPageReference"] || "inline";
-
-      // Only delete if we're not adding the reference inline
       if (referenceMode !== "inline") {
-        // Re-fetch block and remove audio file reference
         const freshBlock = await logseq.Editor.getBlock(current.uuid);
         if (freshBlock) {
           const cleanedContent = freshBlock.content.replace(/!\[.*?\]\(.+\.(aac|mp3|m4a|wav|webm)\)/i, "");
@@ -255,7 +276,6 @@ export async function runVoiceFlow(): Promise<void> {
     console.error("[VoiceFlow] Error in voice flow:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-    // Provide helpful error messages
     if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
       logseq.App.showMsg("Invalid OpenAI API key. Please check your settings.", "error");
     } else if (errorMessage.includes("429") || errorMessage.includes("quota")) {
@@ -278,9 +298,6 @@ export async function processVoiceNote(blockUuid: string): Promise<void> {
     return;
   }
 
-  // Temporarily set the editing cursor to this block
   await logseq.Editor.editBlock(blockUuid);
-
-  // Run the voice flow
   await runVoiceFlow();
 }

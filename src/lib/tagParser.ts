@@ -29,11 +29,17 @@ export function parseTags(transcript: string, blockContent: string, settings: an
   }
 
   // Normalize spoken hashtags to actual hashtags for processing
-  // Also handle variations like "to-do" vs "todo"
+  // Handle variations like "to-do" vs "todo" vs "to do" (with space)
   let normalizedText = combinedText
+    // IMPORTANT: Handle "hashtag to do" with space FIRST before general pattern
+    .replace(/hashtag\s+to\s+do/gi, '#todo')  // Handle "hashtag to do" with space
+    .replace(/hash\s+tag\s+to\s+do/gi, '#todo')  // Handle "hash tag to do" with space
+    // Then handle general hashtag patterns
     .replace(/hashtag\s+(\w+(-\w+)*)/gi, '#$1')
-    .replace(/hash tag\s+(\w+(-\w+)*)/gi, '#$1')
+    .replace(/hash\s+tag\s+(\w+(-\w+)*)/gi, '#$1')
+    // Handle written variations
     .replace(/#to-do/gi, '#todo')  // Normalize to-do to todo
+    .replace(/#to\s+do/gi, '#todo')  // Handle written "#to do" with space
     .replace(/hashtag to-do/gi, '#todo');  // Handle spoken "hashtag to-do"
 
   // Check for todo triggers (both spoken and written)
@@ -134,9 +140,9 @@ function extractDueDate(text: string): string | undefined {
   // Handle spoken "hashtag due date" pattern more explicitly
   // Look for "hashtag due date [date]" or "due date [date]"
   const dueDatePatterns = [
-    /hashtag due date\s+(.+?)(?:\s*hashtag|$)/i,
-    /hash tag due date\s+(.+?)(?:\s*hashtag|$)/i,
-    /due date\s+(.+?)(?:\s*hashtag|$)/i,
+    /hashtag\s+due\s+date\s+(.+?)(?:\s*hashtag|$)/i,
+    /hash\s+tag\s+due\s+date\s+(.+?)(?:\s*hashtag|$)/i,
+    /due\s+date\s+(.+?)(?:\s*hashtag|$)/i,
     /by\s+(.+?)(?:\s+hashtag|\s+hash tag|$)/i,
     /deadline\s+(.+?)(?:\s+hashtag|\s+hash tag|$)/i,
     /due\s+(.+?)(?:\s+hashtag|\s+hash tag|$)/i
@@ -209,13 +215,16 @@ function extractDueDate(text: string): string | undefined {
  */
 function removeSpokenTags(text: string): string {
   let cleaned = text
-    // Remove spoken hashtags (including hyphenated ones)
-    .replace(/hashtag\s+[\w-]+/gi, '')
-    .replace(/hash tag\s+[\w-]+/gi, '')
+    // Remove spoken hashtags (including variations with spaces)
+    .replace(/hashtag\s+to\s+do/gi, '')  // Remove "hashtag to do" with space
+    .replace(/hash\s+tag\s+to\s+do/gi, '')  // Remove "hash tag to do" with space
+    .replace(/hashtag\s+[\w-]+/gi, '')  // Remove other hashtags
+    .replace(/hash\s+tag\s+[\w-]+/gi, '')
     // Remove written hashtags
     .replace(/#[\w-]+/g, '')
+    .replace(/#to\s+do/gi, '')  // Remove written "#to do" with space
     // Remove due date phrases (but keep the actual task text)
-    .replace(/,?\s*(hashtag\s+)?due date\s+[\w\s]+(?=\.|,|$)/gi, '')
+    .replace(/,?\s*(hashtag\s+)?due\s+date\s+[\w\s]+(?=\.|,|$)/gi, '')
     .replace(/deadline\s+[\w\s]+(?=\.|,|$)/gi, '')
     // Clean up extra whitespace and punctuation
     .replace(/\s+/g, ' ')
