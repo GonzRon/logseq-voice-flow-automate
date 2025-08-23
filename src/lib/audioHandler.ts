@@ -1,5 +1,7 @@
 // src/lib/audioHandler.ts - Audio file handling for VoiceFlow Automate
 import "@logseq/libs";
+import {Simulate} from "react-dom/test-utils";
+import error = Simulate.error;
 
 export interface AudioConversionConfig {
   converterHost?: string;
@@ -41,6 +43,38 @@ export class AudioConverter {
     } catch (error) {
       console.error('AAC Converter server health check failed:', error);
       return false;
+    }
+  }
+
+    async convertAACToWebM(aacBlob: Blob, filename: string): Promise<Blob> {
+    const formData = new FormData();
+    formData.append('file', aacBlob, filename);
+    formData.append('output_format', 'webm');
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(`${this.serverUrl}/convert`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Conversion failed: ${response.status} - ${errorText}`);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Conversion timed out');
+      }
+      console.error('AAC to WebM conversion failed:', error);
+      throw error;
     }
   }
 
@@ -157,33 +191,29 @@ async function handleAACFile(aacBlob: Blob, filename: string): Promise<File | nu
       const errorMsg = `AAC Converter not available. Please ensure the converter service is running at ${converterHost}:${converterPort}`;
       console.warn('[VoiceFlow]', errorMsg);
       logseq.App.showMsg(errorMsg, "warning");
-
-      // Return AAC file as-is and let Whisper handle it
-      console.log('[VoiceFlow] Attempting to send AAC directly to Whisper API');
-      return new File([aacBlob], filename, { type: 'audio/aac' });
+        // Whisper does not support AAC Files, therefore we should throw an error here
+        logseq.App.showMsg("AAC conversion failed...", "error");
+        return null;
     }
 
     // Convert the file
-    logseq.App.showMsg("Converting AAC to M4A...", "info");
-    const m4aBlob = await converter.convertAACToM4A(aacBlob, filename);
-    const m4aFilename = filename.replace(/\.aac$/i, '.m4a');
+    logseq.App.showMsg("Converting AAC to WebM...", "info");
+    // const m4aBlob = await converter.convertAACToM4A(aacBlob, filename);
+       const webmBlob = await converter.convertAACToWebM(aacBlob, filename);
+    const webmFilename = filename.replace(/\.aac$/i, '.webm');
 
     console.log('[VoiceFlow] AAC conversion successful:', {
       originalSize: aacBlob.size,
-      convertedSize: m4aBlob.size
+      convertedSize: webmBlob.size
     });
 
     logseq.App.showMsg("AAC conversion successful!", "success");
-    return new File([m4aBlob], m4aFilename, { type: 'audio/m4a' });
+    return new File([webmBlob], webmFilename, { type: 'audio/webm' });
 
   } catch (error) {
     console.error('[VoiceFlow] AAC conversion failed:', error);
-    // const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-    // Try sending AAC directly as fallback
-    console.log('[VoiceFlow] Fallback: sending AAC directly to Whisper');
-    logseq.App.showMsg("AAC conversion failed, attempting direct transcription...", "warning");
-
-    return new File([aacBlob], filename, { type: 'audio/aac' });
+    logseq.App.showMsg("AAC conversion failed...", "error");
+    return null;
   }
 }
+
